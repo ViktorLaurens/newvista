@@ -379,42 +379,11 @@ with st.sidebar:
             st.caption("Waiting for the host to configure the game…")
 
 # Main content tabs
-about_tab, guess_tab, board_tab, usecases_tab = st.tabs([
-    "How it works",
+guess_tab, board_tab, usecases_tab = st.tabs([
     "Enter your guess",
     "Leaderboard",
     "Use cases",
 ])
-
-with about_tab:
-    st.markdown(
-        """
-        **Snap → Segment → Reconstruct → Wrap → Measure.**  
-        Take a few photos, isolate the object, build a 3D point cloud, create a watertight mesh, and compute its volume.  
-        Today you can **win goodies** by guessing the object's volume. 🏆
-        """
-    )
-    cols = st.columns(5)
-    steps = [
-        ("1. Photos", "Capture several angles."),
-        ("2. Mask", "Quickly select the object."),
-        ("3. 3D Points", "Reconstruct world points."),
-        ("4. Watertight Mesh", "Alpha-wrap & smooth."),
-        ("5. Volume", "Calculate & compare."),
-    ]
-    image_paths = [
-        "images/steps/20250901_172303.jpg",
-        "images/steps/mask_scaled.png",
-        "images/steps/point_cloud.png",
-        "images/steps/mesh.png",
-        None,
-    ]
-    for i, (title, desc) in enumerate(steps):
-        with cols[i]:
-            st.metric(label=title, value="Ready")
-            if image_paths[i] and os.path.exists(image_paths[i]):
-                st.image(image_paths[i])
-            st.caption(desc)
 
 with guess_tab:
     st.subheader("Your shot at glory ✨")

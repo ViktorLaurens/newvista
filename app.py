@@ -530,8 +530,8 @@ Compute areas and volumes for materials, insulation, and waste planning."""
 
 Quick room volumes and clearances for HVAC or prefab checks."""
         )
-        if os.path.exists("images/use_cases/room.jpeg"):
-            st.image("images/use_cases/room.jpeg")
+        if os.path.exists("images/use_cases/prefab.jpeg"):
+            st.image("images/use_cases/prefab.jpeg")
     with uc4:
         st.markdown(
             """**Progress tracking**

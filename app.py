@@ -446,7 +446,7 @@ with board_tab:
             df_for_display.insert(0, 'Position', range(1, len(df_for_display) + 1))
 
             # Select, rename and reorder columns for display
-            df_view = df_for_display[["Position", "pct_error", "display_name", "timestamp"]].rename(columns={
+            df_view = df_for_display[["Position", "display_name", "pct_error", "timestamp"]].rename(columns={
                 "display_name": "Name",
                 "pct_error": "% error",
                 "timestamp": "Time",

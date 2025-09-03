@@ -452,7 +452,8 @@ with board_tab:
                 "timestamp": "Time",
             })
             
-            st.dataframe(df_view, use_container_width=True, hide_index=True)
+            # Center-align the text in the DataFrame
+            st.dataframe(df_view.style.set_properties(**{'text-align': 'center'}), use_container_width=True, hide_index=True)
             best = df.iloc[0]
             st.caption(f"Best so far: {best['display_name']} ({best['pct_error']:.2f}% error)")
         else:

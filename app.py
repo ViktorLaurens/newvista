@@ -15,6 +15,7 @@ from datetime import datetime
 import hashlib
 from typing import Tuple, Optional, List
 import io
+import base64
 
 import pandas as pd
 import numpy as np
@@ -293,9 +294,18 @@ st.title(APP_TITLE)
 
 # Sidebar: Admin controls
 with st.sidebar:
-    _, col2, _ = st.columns([1, 2, 1])
-    with col2:
-        st.image("BW_logo.png", width=100)
+    try:
+        with open("BW_logo.png", "rb") as f:
+            data = f.read()
+        b64_string = base64.b64encode(data).decode()
+        st.markdown(f"""
+        <div style="display: flex; justify-content: center;">
+            <img src="data:image/png;base64,{b64_string}" width="100">
+        </div>
+        """, unsafe_allow_html=True)
+    except FileNotFoundError:
+        st.warning("Logo image not found.")
+    
     url = _share_url()
     st.caption("Share this link/QR:")
     st.code(url)

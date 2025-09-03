@@ -431,6 +431,8 @@ with guess_tab:
             else:
                 st.write("Thanks for playing — show this screen to claim **1 goodie**!")
 
+from streamlit.components.v1 import html as st_html  # put near your imports if you prefer
+
 with board_tab:
     st.subheader("Live Leaderboard 🏁")
     df = STORAGE.load_guesses()
@@ -438,57 +440,70 @@ with board_tab:
         st.caption("No entries yet. Be the first!")
     else:
         df = df.copy()
-        if "abs_error_liters" in df.columns and "pct_error" in df.columns:
-            # Sort by closeness and take Top 10
+        if {"abs_error_liters", "pct_error", "timestamp"}.issubset(df.columns):
+            # sort and take top 10
             df.sort_values(by=["pct_error", "abs_error_liters", "timestamp"], inplace=True)
-            df_top = df.head(10).copy()
-            df_top.insert(0, "Position", range(1, len(df_top) + 1))
+            top = df.head(10).copy()
+            top.insert(0, "Position", range(1, len(top) + 1))
 
-            # Build display frame
-            df_view = df_top[["Position", "display_name", "pct_error", "timestamp"]].rename(columns={
-                "display_name": "Name",
-                "pct_error": "% error",
-                "timestamp": "Time",
-            })
+            # format columns
+            top["Name"] = top["display_name"].astype(str).str.strip().replace({"": "Anonymous"})
+            top["% error"] = pd.to_numeric(top["pct_error"], errors="coerce").round(2).map(lambda x: f"{x:.2f}")
+            t = pd.to_datetime(top["timestamp"], errors="coerce")
+            top["Time"] = np.where(t.notna(), t.dt.strftime("%H:%M:%S"), top["timestamp"].astype(str))
 
-            # Pretty formatting
-            df_view["% error"] = df_view["% error"].map(lambda x: f"{x:.2f}")
-            # Optional: only show time (HH:MM:SS)
-            # df_view["Time"] = pd.to_datetime(df_view["Time"], errors="coerce").dt.strftime("%H:%M:%S")
+            # build HTML rows
+            import html as ihtml  # for safe escaping of names/times
+            def medal(p):
+                return "🥇" if p == 1 else "🥈" if p == 2 else "🥉" if p == 3 else str(p)
 
-            # Medal badges (HTML) for top 3; keep others as numbers
-            def pos_badge(p: int) -> str:
-                if p == 1: return "🥇"
-                if p == 2: return "🥈"
-                if p == 3: return "🥉"
-                return str(p)
-            df_view["Position"] = df_view["Position"].apply(lambda p: f"<span class='pos'>{pos_badge(p)}</span>")
+            rows = []
+            for _, r in top.iterrows():
+                rows.append(
+                    f"<tr>"
+                    f"<td class='pos'>{medal(int(r['Position']))}</td>"
+                    f"<td>{ihtml.escape(str(r['Name']))}</td>"
+                    f"<td>{r['% error']}</td>"
+                    f"<td>{ihtml.escape(str(r['Time']))}</td>"
+                    f"</tr>"
+                )
 
-            # Create HTML table w/ custom CSS — all cells centered, no index
-            css = """
-            <style>
-              table.leaderboard { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 1.05rem; }
-              table.leaderboard th, table.leaderboard td { text-align: center; padding: 10px 12px; }
-              table.leaderboard thead th { position: sticky; top: 0; z-index: 1;
-                  background: rgba(255,255,255,0.06); backdrop-filter: blur(2px); }
-              table.leaderboard tr:nth-child(even) td { background: rgba(255,255,255,0.04); }
-              table.leaderboard td, table.leaderboard th { border-bottom: 1px solid rgba(255,255,255,0.10); }
-              /* round corners on the whole table card a bit */
-              table.leaderboard { border-radius: 12px; overflow: hidden; }
-              /* position badge */
-              .pos { display:inline-grid; place-items:center; width:2.1rem; height:2.1rem; border-radius:50%;
-                     background: rgba(255,255,255,0.08); font-weight:700; }
-              /* gold / silver / bronze backgrounds for first three rows */
-              tbody tr:nth-child(1) .pos { background: linear-gradient(135deg,#ffd700,#ffbf00); color:#111; }
-              tbody tr:nth-child(2) .pos { background: linear-gradient(135deg,#c0c0c0,#bdbdbd); color:#111; }
-              tbody tr:nth-child(3) .pos { background: linear-gradient(135deg,#cd7f32,#b87333); color:#111; }
-            </style>
-            """
+            # table + CSS (all cells centered)
+            html_str = f"""
+<style>
+.lb {{
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 1.05rem;
+}}
+.lb th, .lb td {{
+  text-align: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(128,128,128,0.25);
+}}
+.lb thead th {{
+  position: sticky; top: 0;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(2px);
+}}
+.lb tr:nth-child(even) td {{ background: rgba(255,255,255,0.04); }}
+.pos {{
+  font-weight: 700;
+}}
+</style>
+<table class="lb">
+  <thead>
+    <tr><th>Position</th><th>Name</th><th>% error</th><th>Time</th></tr>
+  </thead>
+  <tbody>
+    {''.join(rows)}
+  </tbody>
+</table>
+"""
+            st_html(html_str, height=(len(top) * 48) + 80, scrolling=False)
 
-            html = df_view.to_html(index=False, escape=False, classes="leaderboard")
-            st.markdown(css + html, unsafe_allow_html=True)
-
-            # Best so far (from the fully sorted df, not just top10)
+            # Best so far (from fully sorted df)
             best = df.iloc[0]
             st.caption(f"Best so far: {best['display_name']} ({best['pct_error']:.2f}% error)")
         else:

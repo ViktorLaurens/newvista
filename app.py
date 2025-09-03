@@ -514,6 +514,8 @@ with usecases_tab:
 
 Measure earth, gravel or debris piles fast to estimate haulage or billing."""
         )
+        if os.path.exists("images/use_cases/stockpile.jpeg"):
+            st.image("images/use_cases/stockpile.jpeg")
     with uc2:
         st.markdown(
             """**Walls & roofs**

@@ -439,25 +439,43 @@ with board_tab:
     else:
         df = df.copy()
         if "abs_error_liters" in df.columns and "pct_error" in df.columns:
+            # sort by closeness
             df.sort_values(by=["pct_error", "abs_error_liters", "timestamp"], inplace=True)
-            
-            # Prepare the display dataframe
-            df_for_display = df.head(10).copy()
-            df_for_display.insert(0, 'Position', range(1, len(df_for_display) + 1))
 
-            # Select, rename and reorder columns for display
+            # Top 10 + position column
+            df_for_display = df.head(10).copy()
+            df_for_display.insert(0, "Position", range(1, len(df_for_display) + 1))
+
+            # Select/rename display columns
             df_view = df_for_display[["Position", "display_name", "pct_error", "timestamp"]].rename(columns={
                 "display_name": "Name",
                 "pct_error": "% error",
                 "timestamp": "Time",
             })
-            
-            # Center-align the text in the DataFrame
-            st.dataframe(df_view.style.set_properties(**{'text-align': 'center'}), use_container_width=True, hide_index=True)
+
+            # Center headers + cells; hide index; format % error
+            styler = (
+                df_view.style
+                    .set_table_styles([
+                        {"selector": "th", "props": [("text-align", "center")]},
+                        {"selector": "td", "props": [("text-align", "center")]},
+                    ])
+                    .format({"% error": "{:.2f}"})
+            )
+            try:
+                styler = styler.hide(axis="index")
+            except Exception:
+                styler = styler.hide_index()
+
+            # Use st.table (Styler is ignored by st.dataframe)
+            st.table(styler)
+
+            # Best so far
             best = df.iloc[0]
             st.caption(f"Best so far: {best['display_name']} ({best['pct_error']:.2f}% error)")
         else:
             st.warning("Leaderboard data is in an old format and cannot be displayed.")
+
 
 with usecases_tab:
     st.subheader("Where this helps on site")

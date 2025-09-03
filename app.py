@@ -14,6 +14,7 @@ import json
 from datetime import datetime
 import hashlib
 from typing import Tuple, Optional, List
+import io
 
 import pandas as pd
 import numpy as np
@@ -322,7 +323,9 @@ with st.container():
         if qrcode is not None:
             try:
                 img = qrcode.make(url)
-                st.image(img, caption="Scan to join", use_container_width=True)
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                st.image(buf, caption="Scan to join", use_container_width=True)
             except Exception as e:
                 st.error(f"Could not generate QR code: {e}")
 

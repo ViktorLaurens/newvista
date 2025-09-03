@@ -48,17 +48,13 @@ CONFIG_PATH = "config.json"
 CONFIG_LOCK = "config.json.lock"
 CSV_LOCK = "leaderboard.csv.lock"
 ADMIN_PIN = os.environ.get("VOLUME_GUESS_ADMIN_PIN", st.secrets.get("VOLUME_GUESS_ADMIN_PIN", "2468"))
-DEFAULT_UNITS = "liters"
 DEFAULT_PORT = os.environ.get("PUBLIC_PORT", "8501")
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", st.secrets.get("PUBLIC_BASE_URL"))
 
 DEFAULT_CONFIG = {
-"display_units": DEFAULT_UNITS, # UI default units
-"truth_units": DEFAULT_UNITS, # units of the raw value the admin typed
-"truth_value": None, # raw numeric value in truth_units
-"truth_m3": None, # cached m³ (for backward compatibility / scoring)
-"tol_mode": "percent",
-"tolerance_value": 5.0,
+    "truth_liters": None,
+    "tol_mode": "percent",
+    "tolerance_value": 5.0,
 }
 # -------------------- Helper utils --------------------
 
@@ -78,30 +74,6 @@ def _hash_contact(contact: str) -> str:
     return hashlib.sha256(contact.encode("utf-8")).hexdigest()[:12]
 
 
-def _units_to_m3(value: float, units: str) -> float:
-    if units == "m³":
-        return float(value)
-    if units == "liters":
-        return float(value) / 1000.0
-    if units == "cm³":
-        return float(value) / 1_000_000.0
-    if units == "ft³":
-        return float(value) * 0.0283168466
-    return float(value)
-
-
-def _format_units(m3_value: float, units: str) -> float:
-    if units == "m³":
-        return m3_value
-    if units == "liters":
-        return m3_value * 1000.0
-    if units == "cm³":
-        return m3_value * 1_000_000.0
-    if units == "ft³":
-        return m3_value / 0.0283168466
-    return m3_value
-
-
 def _to_float(v: any) -> Optional[float]:
     if v is None:
         return None
@@ -109,15 +81,6 @@ def _to_float(v: any) -> Optional[float]:
         return float(str(v).replace(",", "."))
     except (ValueError, TypeError):
         return None
-
-
-def _current_truth_in_units(cfg, units_admin):
-    if cfg.get("truth_value") is not None and cfg.get("truth_units"):
-        m3 = _units_to_m3(float(cfg["truth_value"]), cfg["truth_units"])
-        return _format_units(m3, units_admin)
-    elif cfg.get("truth_m3") is not None:
-        return _format_units(float(cfg["truth_m3"]), units_admin)
-    return 0.0
 
 
 def _lock(path: str):
@@ -167,17 +130,17 @@ class SheetsStorage(Storage):
         try:
             self._guesses_ws = self._sh.worksheet("guesses")
         except gspread.WorksheetNotFound:
-            self._guesses_ws = self._sh.add_worksheet("guesses", rows=1, cols=9)
+            self._guesses_ws = self._sh.add_worksheet("guesses", rows=1, cols=8)
             headers = [
-                "timestamp","display_name","guess_m3","guess_units","abs_error_m3","pct_error","is_winner","contact_hash","raw_name"
+                "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"
             ]
-            self._guesses_ws.update("A1:I1", [headers])
+            self._guesses_ws.update("A1:H1", [headers])
         # config sheet
         try:
             self._config_ws = self._sh.worksheet("config")
         except gspread.WorksheetNotFound:
-            self._config_ws = self._sh.add_worksheet("config", rows=4, cols=2)
-            self._config_ws.update("A1:B4", [["key","value"],["display_units",DEFAULT_UNITS],["tol_mode","percent"],["tolerance_value","5"]])
+            self._config_ws = self._sh.add_worksheet("config", rows=3, cols=2)
+            self._config_ws.update("A1:B3", [["key", "value"], ["tol_mode", "percent"], ["tolerance_value", "5"]])
 
     def load_guesses(self) -> pd.DataFrame:
         vals = self._guesses_ws.get_all_values()
@@ -185,38 +148,39 @@ class SheetsStorage(Storage):
             return pd.DataFrame()
         df = pd.DataFrame(vals[1:], columns=vals[0])
         # coerce
-        for col in ("guess_m3", "abs_error_m3", "pct_error"):
+        for col in ("guess_liters", "abs_error_liters", "pct_error"):
             df[col] = df[col].apply(_to_float)
             df[col] = pd.to_numeric(df[col], errors="coerce")
         df["is_winner"] = df["is_winner"].astype(str).str.lower().isin(["true", "1", "yes"])  # type: ignore
         return df
 
     def append_guess(self, row: dict) -> None:
-        order = ["timestamp","display_name","guess_m3","guess_units","abs_error_m3","pct_error","is_winner","contact_hash","raw_name"]
+        order = ["timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"]
         self._guesses_ws.append_row([row.get(k, "") for k in order], value_input_option="USER_ENTERED")
 
     def load_config(self) -> dict:
         cfg = DEFAULT_CONFIG.copy()
         vals = self._config_ws.get_all_records()
         for r in vals:
-            k = str(r.get("key",""))
+            k = str(r.get("key", ""))
             v = r.get("value")
-            if k == "display_units" and v:
-                cfg["display_units"] = str(v)
-            elif k == "tol_mode" and v in ("percent","absolute"):
+            if k == "tol_mode" and v in ("percent", "absolute"):
                 cfg["tol_mode"] = str(v)
             elif k == "tolerance_value" and v is not None:
                 cfg["tolerance_value"] = _to_float(v) or cfg["tolerance_value"]
-            elif k == "truth_m3" and v not in (None, ""):
-                cfg["truth_m3"] = _to_float(v) or cfg["truth_m3"]
-            elif k == "truth_value" and v not in (None, ""):
-                cfg["truth_value"] = _to_float(v) or cfg["truth_value"]
+            elif k == "truth_liters" and v not in (None, ""):
+                cfg["truth_liters"] = _to_float(v) or cfg["truth_liters"]
         return cfg
 
     def save_config(self, cfg: dict) -> None:
-        rows = [["key","value"],["display_units", cfg.get("display_units", DEFAULT_UNITS)],["tol_mode", cfg.get("tol_mode","percent")],["tolerance_value", cfg.get("tolerance_value", 5.0)],["truth_m3", cfg.get("truth_m3") or ""]]
+        rows = [
+            ["key", "value"],
+            ["tol_mode", cfg.get("tol_mode", "percent")],
+            ["tolerance_value", cfg.get("tolerance_value", 5.0)],
+            ["truth_liters", cfg.get("truth_liters") or ""]
+        ]
         self._config_ws.clear()
-        self._config_ws.update("A1:B5", rows)
+        self._config_ws.update("A1:B4", rows)
 
 # ---- Local CSV Backend ----
 class CsvStorage(Storage):
@@ -228,7 +192,7 @@ class CsvStorage(Storage):
             with _lock(CSV_LOCK):
                 if not os.path.exists(CSV_PATH):
                     df = pd.DataFrame(columns=[
-                        "timestamp","display_name","guess_m3","guess_units","abs_error_m3","pct_error","is_winner","contact_hash","raw_name"
+                        "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"
                     ])
                     df.to_csv(CSV_PATH, index=False)
 
@@ -239,10 +203,10 @@ class CsvStorage(Storage):
                 df = pd.read_csv(CSV_PATH)
             except Exception:
                 df = pd.DataFrame(columns=[
-                    "timestamp","display_name","guess_m3","guess_units","abs_error_m3","pct_error","is_winner","contact_hash","raw_name"
+                    "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"
                 ])
         if not df.empty:
-            for col in ("guess_m3","abs_error_m3","pct_error"):
+            for col in ("guess_liters", "abs_error_liters", "pct_error"):
                 df[col] = pd.to_numeric(df[col], errors="coerce")
             df["is_winner"] = df["is_winner"].astype(bool)
         return df
@@ -287,9 +251,9 @@ STORAGE = _get_storage()
 
 # -------------------- Scoring --------------------
 
-def _compute_outcome(truth_m3: float, guess_m3: float, tol_mode: str, tol_val: float) -> Tuple[float, float, bool]:
-    abs_err = abs(truth_m3 - guess_m3)
-    pct_err = (abs_err / truth_m3 * 100.0) if truth_m3 and truth_m3 > 0 else float("inf")
+def _compute_outcome(truth_liters: float, guess_liters: float, tol_mode: str, tol_val: float) -> Tuple[float, float, bool]:
+    abs_err = abs(truth_liters - guess_liters)
+    pct_err = (abs_err / truth_liters * 100.0) if truth_liters and truth_liters > 0 else float("inf")
     if tol_mode == "percent":
         is_win = pct_err <= tol_val
     else:
@@ -352,28 +316,21 @@ with st.sidebar:
     if admin:
         st.success("Admin mode enabled")
         st.subheader("Ground Truth Volume")
-        units_admin = st.selectbox("Display units", ["liters","m³","cm³","ft³"], index=["liters","m³","cm³","ft³"].index(cfg.get("display_units", DEFAULT_UNITS)))
-        truth_in_units = st.number_input(f"True volume ({units_admin})",
-                                        min_value=0.0,
-                                        value=_current_truth_in_units(cfg, units_admin),
-                                        step=0.1, format="%.3f")
-        truth_m3_new = _units_to_m3(truth_in_units, units_admin)
+        truth_liters_new = st.number_input("True volume (liters)",
+                                         min_value=0.0,
+                                         value=float(cfg.get("truth_liters") or 0.0),
+                                         step=0.1, format="%.3f")
 
         st.subheader("Winner Tolerance")
-        tol_mode = st.radio("Tolerance mode", ["percent","absolute"], index=0 if cfg.get("tol_mode") == "percent" else 1, horizontal=True)
+        tol_mode = st.radio("Tolerance mode", ["percent", "absolute"], index=0 if cfg.get("tol_mode") == "percent" else 1, horizontal=True)
         if tol_mode == "percent":
             tol_val = st.slider("±% from truth", min_value=1, max_value=50, value=int(cfg.get("tolerance_value", 5)))
         else:
-            tol_units = st.selectbox("Abs tolerance units", ["liters","m³"], index=0)
-            tol_val_input = st.number_input("± tolerance", min_value=0.0, value=float(_format_units(cfg.get("tolerance_value", 0.002), tol_units)), step=0.5)
-            tol_val = _units_to_m3(tol_val_input, tol_units)
+            tol_val = st.number_input("± tolerance (liters)", min_value=0.0, value=float(cfg.get("tolerance_value", 2.0)), step=0.5)
 
         if st.button("Save & broadcast settings", use_container_width=True):
             new_cfg = {
-                "display_units": units_admin,
-                "truth_units": units_admin,
-                "truth_value": float(truth_in_units),
-                "truth_m3": float(truth_m3_new),
+                "truth_liters": float(truth_liters_new),
                 "tol_mode": tol_mode,
                 "tolerance_value": float(tol_val),
             }
@@ -386,12 +343,12 @@ with st.sidebar:
             if isinstance(STORAGE, SheetsStorage):
                 sh_storage: SheetsStorage = STORAGE
                 sh_storage._guesses_ws.resize(rows=1)
-                sh_storage._guesses_ws.update("A1:I1", [[
-                    "timestamp","display_name","guess_m3","guess_units","abs_error_m3","pct_error","is_winner","contact_hash","raw_name"
+                sh_storage._guesses_ws.update("A1:H1", [[
+                    "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"
                 ]])
             else:
                 with _lock(CSV_LOCK):
-                    pd.DataFrame(columns=["timestamp","display_name","guess_m3","guess_units","abs_error_m3","pct_error","is_winner","contact_hash","raw_name"]).to_csv(CSV_PATH, index=False)
+                    pd.DataFrame(columns=["timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"]).to_csv(CSV_PATH, index=False)
             st.warning("Leaderboard reset.")
 
         df_all = STORAGE.load_guesses()
@@ -404,7 +361,7 @@ with st.sidebar:
         )
     else:
         st.info("Admin-only area. A host will enable the game.")
-        if cfg.get("truth_m3"):
+        if cfg.get("truth_liters"):
             st.caption("Game is configured. Good luck!")
         else:
             st.caption("Waiting for the host to configure the game…")
@@ -441,30 +398,26 @@ with about_tab:
 with guess_tab:
     st.subheader("Your shot at glory ✨")
     cfg = STORAGE.load_config()
-    truth_m3 = cfg.get("truth_m3")
-    if (truth_m3 is None or truth_m3 <= 0) and (cfg.get("truth_value") is not None):
-        truth_m3 = _units_to_m3(float(cfg["truth_value"]), cfg.get("truth_units", DEFAULT_UNITS))
-    if not truth_m3 or truth_m3 <= 0:
+    truth_liters = cfg.get("truth_liters")
+    if not truth_liters or truth_liters <= 0:
         st.warning("Host is setting up the game. Please check back in a moment.")
     name = st.text_input("Your name (optional)", placeholder="First name or nickname")
     contact = st.text_input("Contact (optional)", placeholder="Email or phone — only to notify winners")
 
-    g_units = st.selectbox("Units", ["liters","m³","cm³","ft³"], index=["liters","m³","cm³","ft³"].index(cfg.get("display_units", DEFAULT_UNITS)))
-    guess_value = st.number_input("Your guess", min_value=0.0, value=0.0, step=0.1)
+    guess_value = st.number_input("Your guess (liters)", min_value=0.0, value=0.0, step=0.1)
 
     if st.button("Submit guess", use_container_width=True):
-        if not truth_m3 or truth_m3 <= 0:
+        if not truth_liters or truth_liters <= 0:
             st.error("Sorry — scoring isn't ready yet.")
         else:
-            guess_m3 = _units_to_m3(guess_value, g_units)
-            abs_err, pct_err, is_win = _compute_outcome(truth_m3, guess_m3, cfg.get("tol_mode","percent"), float(cfg.get("tolerance_value", 5.0)))
+            guess_liters = guess_value
+            abs_err, pct_err, is_win = _compute_outcome(truth_liters, guess_liters, cfg.get("tol_mode", "percent"), float(cfg.get("tolerance_value", 5.0)))
 
             row = {
                 "timestamp": datetime.now().isoformat(timespec="seconds"),
                 "display_name": _standardize_name(name),
-                "guess_m3": guess_m3,
-                "guess_units": g_units,
-                "abs_error_m3": abs_err,
+                "guess_liters": guess_liters,
+                "abs_error_liters": abs_err,
                 "pct_error": pct_err,
                 "is_winner": bool(is_win),
                 "contact_hash": _hash_contact(contact),
@@ -472,9 +425,8 @@ with guess_tab:
             }
             STORAGE.append_guess(row)
 
-            shown_units = g_units
-            st.success(f"You guessed {guess_value:.3f} {shown_units}.")
-            st.info(f"Actual: {_format_units(truth_m3, shown_units):.3f} {shown_units} • Error: {_format_units(abs_err, shown_units):.3f} {shown_units} ({pct_err:.1f}%).")
+            st.success(f"You guessed {guess_value:.3f} liters.")
+            st.info(f"Actual: {truth_liters:.3f} liters • Error: {abs_err:.3f} liters ({pct_err:.1f}%).")
 
             if is_win:
                 st.balloons()
@@ -489,13 +441,12 @@ with board_tab:
         st.caption("No entries yet. Be the first!")
     else:
         df = df.copy()
-        df.sort_values(by=["pct_error","abs_error_m3","timestamp"], inplace=True)
-        df_view = df[["display_name","pct_error","abs_error_m3","guess_units","timestamp"]].rename(columns={
-            "display_name":"Name",
-            "pct_error":"% error",
-            "abs_error_m3":"Abs error (m³)",
-            "guess_units":"Units",
-            "timestamp":"Time",
+        df.sort_values(by=["pct_error", "abs_error_liters", "timestamp"], inplace=True)
+        df_view = df[["display_name", "pct_error", "abs_error_liters", "timestamp"]].rename(columns={
+            "display_name": "Name",
+            "pct_error": "% error",
+            "abs_error_liters": "Abs error (liters)",
+            "timestamp": "Time",
         })
         st.dataframe(df_view.head(10), use_container_width=True)
         best = df.iloc[0]

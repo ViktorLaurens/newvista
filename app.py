@@ -476,20 +476,24 @@ with board_tab:
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 1.05rem;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: white;
 }}
 .lb th, .lb td {{
   text-align: center;
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(128,128,128,0.25);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
 }}
 .lb thead th {{
   position: sticky; top: 0;
-  background: rgba(255,255,255,0.06);
-  backdrop-filter: blur(2px);
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid rgba(255,255,255,0.2);
 }}
-.lb tr:nth-child(even) td {{ background: rgba(255,255,255,0.04); }}
+.lb tr:nth-child(even) td {{ background: rgba(255,255,255,0.05); }}
 .pos {{
   font-weight: 700;
+  font-size: 1.1rem;
 }}
 </style>
 <table class="lb">

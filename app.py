@@ -102,6 +102,17 @@ def _format_units(m3_value: float, units: str) -> float:
     return m3_value
 
 
+def _to_float(v: any) -> Optional[float]:
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        return float(str(v).replace(",", "."))
+    except (ValueError, TypeError):
+        return None
+
+
 def _current_truth_in_units(cfg, units_admin):
     if cfg.get("truth_value") is not None and cfg.get("truth_units"):
         m3 = _units_to_m3(float(cfg["truth_value"]), cfg["truth_units"])
@@ -176,9 +187,10 @@ class SheetsStorage(Storage):
             return pd.DataFrame()
         df = pd.DataFrame(vals[1:], columns=vals[0])
         # coerce
-        for col in ("guess_m3","abs_error_m3","pct_error"):
+        for col in ("guess_m3", "abs_error_m3", "pct_error"):
+            df[col] = df[col].apply(_to_float)
             df[col] = pd.to_numeric(df[col], errors="coerce")
-        df["is_winner"] = df["is_winner"].astype(str).str.lower().isin(["true","1","yes"])  # type: ignore
+        df["is_winner"] = df["is_winner"].astype(str).str.lower().isin(["true", "1", "yes"])  # type: ignore
         return df
 
     def append_guess(self, row: dict) -> None:
@@ -196,15 +208,11 @@ class SheetsStorage(Storage):
             elif k == "tol_mode" and v in ("percent","absolute"):
                 cfg["tol_mode"] = str(v)
             elif k == "tolerance_value" and v is not None:
-                try:
-                    cfg["tolerance_value"] = float(v)
-                except Exception:
-                    pass
+                cfg["tolerance_value"] = _to_float(v) or cfg["tolerance_value"]
             elif k == "truth_m3" and v not in (None, ""):
-                try:
-                    cfg["truth_m3"] = float(v)
-                except Exception:
-                    pass
+                cfg["truth_m3"] = _to_float(v) or cfg["truth_m3"]
+            elif k == "truth_value" and v not in (None, ""):
+                cfg["truth_value"] = _to_float(v) or cfg["truth_value"]
         return cfg
 
     def save_config(self, cfg: dict) -> None:

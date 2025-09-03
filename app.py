@@ -522,6 +522,8 @@ Measure earth, gravel or debris piles fast to estimate haulage or billing."""
 
 Compute areas and volumes for materials, insulation, and waste planning."""
         )
+        if os.path.exists("images/use_cases/roof_with_area.jpeg"):
+            st.image("images/use_cases/roof_with_area.jpeg")
     with uc3:
         st.markdown(
             """**Room & MEP**

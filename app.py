@@ -323,8 +323,8 @@ with st.container():
             try:
                 img = qrcode.make(url)
                 st.image(img, caption="Scan to join", use_container_width=True)
-            except Exception:
-                pass
+            except Exception as e:
+                st.error(f"Could not generate QR code: {e}")
 
 # Sidebar: Admin controls
 with st.sidebar:

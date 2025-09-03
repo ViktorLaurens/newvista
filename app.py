@@ -68,12 +68,6 @@ def _standardize_name(name: str) -> str:
     return f"{parts[0][:14]} {parts[1][0].upper()}."
 
 
-def _hash_contact(contact: str) -> str:
-    if not contact:
-        return ""
-    return hashlib.sha256(contact.encode("utf-8")).hexdigest()[:12]
-
-
 def _to_float(v: any) -> Optional[float]:
     if v is None:
         return None
@@ -130,11 +124,11 @@ class SheetsStorage(Storage):
         try:
             self._guesses_ws = self._sh.worksheet("guesses")
         except gspread.WorksheetNotFound:
-            self._guesses_ws = self._sh.add_worksheet("guesses", rows=1, cols=8)
+            self._guesses_ws = self._sh.add_worksheet("guesses", rows=1, cols=7)
             headers = [
-                "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"
+                "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "raw_name"
             ]
-            self._guesses_ws.update("A1:H1", [headers])
+            self._guesses_ws.update("A1:G1", [headers])
         # config sheet
         try:
             self._config_ws = self._sh.worksheet("config")
@@ -149,13 +143,15 @@ class SheetsStorage(Storage):
         df = pd.DataFrame(vals[1:], columns=vals[0])
         # coerce
         for col in ("guess_liters", "abs_error_liters", "pct_error"):
-            df[col] = df[col].apply(_to_float)
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-        df["is_winner"] = df["is_winner"].astype(str).str.lower().isin(["true", "1", "yes"])  # type: ignore
+            if col in df.columns:
+                df[col] = df[col].apply(_to_float)
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        if "is_winner" in df.columns:
+            df["is_winner"] = df["is_winner"].astype(str).str.lower().isin(["true", "1", "yes"])  # type: ignore
         return df
 
     def append_guess(self, row: dict) -> None:
-        order = ["timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"]
+        order = ["timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "raw_name"]
         self._guesses_ws.append_row([row.get(k, "") for k in order], value_input_option="USER_ENTERED")
 
     def load_config(self) -> dict:
@@ -192,7 +188,7 @@ class CsvStorage(Storage):
             with _lock(CSV_LOCK):
                 if not os.path.exists(CSV_PATH):
                     df = pd.DataFrame(columns=[
-                        "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"
+                        "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "raw_name"
                     ])
                     df.to_csv(CSV_PATH, index=False)
 
@@ -203,12 +199,14 @@ class CsvStorage(Storage):
                 df = pd.read_csv(CSV_PATH)
             except Exception:
                 df = pd.DataFrame(columns=[
-                    "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"
+                    "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "raw_name"
                 ])
         if not df.empty:
             for col in ("guess_liters", "abs_error_liters", "pct_error"):
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-            df["is_winner"] = df["is_winner"].astype(bool)
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
+            if "is_winner" in df.columns:
+                df["is_winner"] = df["is_winner"].astype(bool)
         return df
 
     def append_guess(self, row: dict) -> None:
@@ -343,22 +341,23 @@ with st.sidebar:
             if isinstance(STORAGE, SheetsStorage):
                 sh_storage: SheetsStorage = STORAGE
                 sh_storage._guesses_ws.resize(rows=1)
-                sh_storage._guesses_ws.update("A1:H1", [[
-                    "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"
+                sh_storage._guesses_ws.update("A1:G1", [[
+                    "timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "raw_name"
                 ]])
             else:
                 with _lock(CSV_LOCK):
-                    pd.DataFrame(columns=["timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "contact_hash", "raw_name"]).to_csv(CSV_PATH, index=False)
+                    pd.DataFrame(columns=["timestamp", "display_name", "guess_liters", "abs_error_liters", "pct_error", "is_winner", "raw_name"]).to_csv(CSV_PATH, index=False)
             st.warning("Leaderboard reset.")
 
         df_all = STORAGE.load_guesses()
-        st.download_button(
-            label="Download CSV",
-            data=df_all.to_csv(index=False).encode("utf-8"),
-            file_name="volume_guess_leaderboard.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+        if not df_all.empty:
+            st.download_button(
+                label="Download CSV",
+                data=df_all.to_csv(index=False).encode("utf-8"),
+                file_name="volume_guess_leaderboard.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
     else:
         st.info("Admin-only area. A host will enable the game.")
         if cfg.get("truth_liters"):
@@ -402,7 +401,6 @@ with guess_tab:
     if not truth_liters or truth_liters <= 0:
         st.warning("Host is setting up the game. Please check back in a moment.")
     name = st.text_input("Your name (optional)", placeholder="First name or nickname")
-    contact = st.text_input("Contact (optional)", placeholder="Email or phone — only to notify winners")
 
     guess_value = st.number_input("Your guess (liters)", min_value=0.0, value=0.0, step=0.1)
 
@@ -420,7 +418,6 @@ with guess_tab:
                 "abs_error_liters": abs_err,
                 "pct_error": pct_err,
                 "is_winner": bool(is_win),
-                "contact_hash": _hash_contact(contact),
                 "raw_name": name,
             }
             STORAGE.append_guess(row)
@@ -441,16 +438,19 @@ with board_tab:
         st.caption("No entries yet. Be the first!")
     else:
         df = df.copy()
-        df.sort_values(by=["pct_error", "abs_error_liters", "timestamp"], inplace=True)
-        df_view = df[["display_name", "pct_error", "abs_error_liters", "timestamp"]].rename(columns={
-            "display_name": "Name",
-            "pct_error": "% error",
-            "abs_error_liters": "Abs error (liters)",
-            "timestamp": "Time",
-        })
-        st.dataframe(df_view.head(10), use_container_width=True)
-        best = df.iloc[0]
-        st.caption(f"Best so far: {best['display_name']} ({best['pct_error']:.2f}% error)")
+        if "abs_error_liters" in df.columns and "pct_error" in df.columns:
+            df.sort_values(by=["pct_error", "abs_error_liters", "timestamp"], inplace=True)
+            df_view = df[["display_name", "pct_error", "abs_error_liters", "timestamp"]].rename(columns={
+                "display_name": "Name",
+                "pct_error": "% error",
+                "abs_error_liters": "Abs error (liters)",
+                "timestamp": "Time",
+            })
+            st.dataframe(df_view.head(10), use_container_width=True)
+            best = df.iloc[0]
+            st.caption(f"Best so far: {best['display_name']} ({best['pct_error']:.2f}% error)")
+        else:
+            st.warning("Leaderboard data is in an old format and cannot be displayed.")
 
 with usecases_tab:
     st.subheader("Where this helps on site")
@@ -482,5 +482,5 @@ Compare volumes over time — pour volumes, excavation progress, or fill/void ch
 
 st.divider()
 st.caption(
-    "We store only your nickname and a hashed contact (optional) to notify winners. No sensitive data."
+    "We store only your nickname. No sensitive data."
 )

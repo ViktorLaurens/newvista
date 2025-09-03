@@ -293,7 +293,7 @@ st.title(APP_TITLE)
 
 # Sidebar: Admin controls
 with st.sidebar:
-    st.image("BW_logo.png", width=150)
+    st.image("BW_logo.png", width=150, align="center")
     url = _share_url()
     st.caption("Share this link/QR:")
     st.code(url)

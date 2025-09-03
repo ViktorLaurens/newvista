@@ -337,8 +337,11 @@ with st.sidebar:
         st.success("Admin mode enabled")
         st.subheader("Ground Truth Volume")
         units_admin = st.selectbox("Display units", ["liters","m³","cm³","ft³"], index=["liters","m³","cm³","ft³"].index(cfg.get("display_units", DEFAULT_UNITS)))
-        truth_in_units = st.number_input(f"True volume ({units_admin})", min_value=0.0, value=_format_units(cfg.get("truth_m3") or 0.0, units_admin), step=0.1)
+        print(units_admin)
+        truth_in_units = st.number_input(f"True volume ({units_admin})", min_value=0.0, value=_format_units(cfg.get("truth_m3") or 0.0, units_admin), step=0.1, format="%.3f")
+        print(truth_in_units)
         truth_m3_new = _units_to_m3(truth_in_units, units_admin)
+        print(truth_m3_new)
 
         st.subheader("Winner Tolerance")
         tol_mode = st.radio("Tolerance mode", ["percent","absolute"], index=0 if cfg.get("tol_mode") == "percent" else 1, horizontal=True)

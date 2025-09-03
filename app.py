@@ -440,12 +440,19 @@ with board_tab:
         df = df.copy()
         if "abs_error_liters" in df.columns and "pct_error" in df.columns:
             df.sort_values(by=["pct_error", "abs_error_liters", "timestamp"], inplace=True)
-            df_view = df[["display_name", "pct_error", "timestamp"]].rename(columns={
+            
+            # Prepare the display dataframe
+            df_for_display = df.head(10).copy()
+            df_for_display.insert(0, 'Position', range(1, len(df_for_display) + 1))
+
+            # Select, rename and reorder columns for display
+            df_view = df_for_display[["Position", "pct_error", "display_name", "timestamp"]].rename(columns={
                 "display_name": "Name",
                 "pct_error": "% error",
                 "timestamp": "Time",
             })
-            st.dataframe(df_view.head(10), use_container_width=True)
+            
+            st.dataframe(df_view, use_container_width=True, hide_index=True)
             best = df.iloc[0]
             st.caption(f"Best so far: {best['display_name']} ({best['pct_error']:.2f}% error)")
         else:

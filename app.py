@@ -313,24 +313,20 @@ def _share_url() -> str:
 st.set_page_config(page_title=APP_TITLE, layout="wide")
 st.title(APP_TITLE)
 
-# Share block (top-right)
-with st.container():
-    cols = st.columns([1,1,1,1])
-    with cols[-1]:
-        url = _share_url()
-        st.caption("Share this link/QR:")
-        st.code(url)
-        if qrcode is not None:
-            try:
-                img = qrcode.make(url)
-                buf = io.BytesIO()
-                img.save(buf, format="PNG")
-                st.image(buf, caption="Scan to join", use_container_width=True)
-            except Exception as e:
-                st.error(f"Could not generate QR code: {e}")
-
 # Sidebar: Admin controls
 with st.sidebar:
+    url = _share_url()
+    st.caption("Share this link/QR:")
+    st.code(url)
+    if qrcode is not None:
+        try:
+            img = qrcode.make(url)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            st.image(buf, caption="Scan to join", use_container_width=True)
+        except Exception as e:
+            st.error(f"Could not generate QR code: {e}")
+
     st.header("Admin")
     pin = st.text_input("PIN", type="password", placeholder="Enter PIN")
     admin = (pin == ADMIN_PIN)

@@ -42,7 +42,7 @@ except Exception:  # pragma: no cover
     gspread = None
     service_account = None  # type: ignore
 
-APP_TITLE = "Guess the Volume — Win Goodies!"
+APP_TITLE = " 🏆 Guess the Volume — Win Goodies! 🏆 "
 CSV_PATH = "leaderboard.csv"
 CONFIG_PATH = "config.json"
 CONFIG_LOCK = "config.json.lock"
@@ -432,7 +432,7 @@ with guess_tab:
                 st.write("Thanks for playing — show this screen to claim **1 goodie**!")
 
 with board_tab:
-    st.subheader("Live Leaderboard 🏁 (closest on top)")
+    st.subheader("Live Leaderboard 🏁")
     df = STORAGE.load_guesses()
     if df.empty:
         st.caption("No entries yet. Be the first!")
@@ -440,10 +440,9 @@ with board_tab:
         df = df.copy()
         if "abs_error_liters" in df.columns and "pct_error" in df.columns:
             df.sort_values(by=["pct_error", "abs_error_liters", "timestamp"], inplace=True)
-            df_view = df[["display_name", "pct_error", "abs_error_liters", "timestamp"]].rename(columns={
+            df_view = df[["display_name", "pct_error", "timestamp"]].rename(columns={
                 "display_name": "Name",
                 "pct_error": "% error",
-                "abs_error_liters": "Abs error (liters)",
                 "timestamp": "Time",
             })
             st.dataframe(df_view.head(10), use_container_width=True)
@@ -482,5 +481,5 @@ Compare volumes over time — pour volumes, excavation progress, or fill/void ch
 
 st.divider()
 st.caption(
-    "We store only your nickname. No sensitive data."
+    f"🎁 **Prize Rules:** Everyone gets **one goodie** for playing. Guess correctly within the tolerance of {cfg.get('tolerance_value')} {cfg.get('tol_mode')} from the true volume to win **two goodies**!"
 )

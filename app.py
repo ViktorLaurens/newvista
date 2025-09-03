@@ -402,9 +402,18 @@ with about_tab:
         ("4. Watertight Mesh", "Alpha-wrap & smooth."),
         ("5. Volume", "Calculate & compare."),
     ]
+    image_paths = [
+        "images/steps/20250901_172303.jpg",
+        "images/steps/mask_scaled.png",
+        "images/steps/point_cloud.png",
+        "images/steps/mesh.png",
+        None,
+    ]
     for i, (title, desc) in enumerate(steps):
         with cols[i]:
             st.metric(label=title, value="Ready")
+            if image_paths[i] and os.path.exists(image_paths[i]):
+                st.image(image_paths[i])
             st.caption(desc)
 
 with guess_tab:

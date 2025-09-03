@@ -105,8 +105,6 @@ def _format_units(m3_value: float, units: str) -> float:
 def _to_float(v: any) -> Optional[float]:
     if v is None:
         return None
-    if isinstance(v, (int, float)):
-        return float(v)
     try:
         return float(str(v).replace(",", "."))
     except (ValueError, TypeError):

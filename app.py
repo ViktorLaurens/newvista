@@ -322,7 +322,7 @@ with st.container():
         if qrcode is not None:
             try:
                 img = qrcode.make(url)
-                st.image(img, caption="Scan to join", use_column_width=True)
+                st.image(img, caption="Scan to join", use_container_width=True)
             except Exception:
                 pass
 

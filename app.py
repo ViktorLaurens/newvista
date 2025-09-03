@@ -456,7 +456,7 @@ with board_tab:
         if {"abs_error_liters", "pct_error", "timestamp"}.issubset(df.columns):
             # sort and take top 10
             df.sort_values(by=["pct_error", "abs_error_liters", "timestamp"], inplace=True)
-            top = df.head(10).copy()
+            top = df.copy()
             top.insert(0, "Position", range(1, len(top) + 1))
 
             # format columns
@@ -518,7 +518,7 @@ with board_tab:
   </tbody>
 </table>
 """
-            st_html(html_str, height=(len(top) * 48) + 80, scrolling=False)
+            st_html(html_str, height=600, scrolling=True)
 
             # Best so far (from fully sorted df)
             best = df.iloc[0]

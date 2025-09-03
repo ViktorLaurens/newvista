@@ -53,12 +53,13 @@ DEFAULT_PORT = os.environ.get("PUBLIC_PORT", "8501")
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", st.secrets.get("PUBLIC_BASE_URL"))
 
 DEFAULT_CONFIG = {
-    "display_units": DEFAULT_UNITS,
-    "truth_m3": None,
-    "tol_mode": "percent",
-    "tolerance_value": 5.0,
+"display_units": DEFAULT_UNITS, # UI default units
+"truth_units": DEFAULT_UNITS, # units of the raw value the admin typed
+"truth_value": None, # raw numeric value in truth_units
+"truth_m3": None, # cached m³ (for backward compatibility / scoring)
+"tol_mode": "percent",
+"tolerance_value": 5.0,
 }
-
 # -------------------- Helper utils --------------------
 
 def _standardize_name(name: str) -> str:
@@ -99,6 +100,15 @@ def _format_units(m3_value: float, units: str) -> float:
     if units == "ft³":
         return m3_value / 0.0283168466
     return m3_value
+
+
+def _current_truth_in_units(cfg, units_admin):
+    if cfg.get("truth_value") is not None and cfg.get("truth_units"):
+        m3 = _units_to_m3(float(cfg["truth_value"]), cfg["truth_units"])
+        return _format_units(m3, units_admin)
+    elif cfg.get("truth_m3") is not None:
+        return _format_units(float(cfg["truth_m3"]), units_admin)
+    return 0.0
 
 
 def _lock(path: str):
@@ -337,11 +347,11 @@ with st.sidebar:
         st.success("Admin mode enabled")
         st.subheader("Ground Truth Volume")
         units_admin = st.selectbox("Display units", ["liters","m³","cm³","ft³"], index=["liters","m³","cm³","ft³"].index(cfg.get("display_units", DEFAULT_UNITS)))
-        print(units_admin)
-        truth_in_units = st.number_input(f"True volume ({units_admin})", min_value=0.0, value=_format_units(cfg.get("truth_m3") or 0.0, units_admin), step=0.1, format="%.3f")
-        print(truth_in_units)
+        truth_in_units = st.number_input(f"True volume ({units_admin})",
+                                        min_value=0.0,
+                                        value=_current_truth_in_units(cfg, units_admin),
+                                        step=0.1, format="%.3f")
         truth_m3_new = _units_to_m3(truth_in_units, units_admin)
-        print(truth_m3_new)
 
         st.subheader("Winner Tolerance")
         tol_mode = st.radio("Tolerance mode", ["percent","absolute"], index=0 if cfg.get("tol_mode") == "percent" else 1, horizontal=True)
@@ -355,6 +365,8 @@ with st.sidebar:
         if st.button("Save & broadcast settings", use_container_width=True):
             new_cfg = {
                 "display_units": units_admin,
+                "truth_units": units_admin,
+                "truth_value": float(truth_in_units),
                 "truth_m3": float(truth_m3_new),
                 "tol_mode": tol_mode,
                 "tolerance_value": float(tol_val),
@@ -424,6 +436,8 @@ with guess_tab:
     st.subheader("Your shot at glory ✨")
     cfg = STORAGE.load_config()
     truth_m3 = cfg.get("truth_m3")
+    if (truth_m3 is None or truth_m3 <= 0) and (cfg.get("truth_value") is not None):
+        truth_m3 = _units_to_m3(float(cfg["truth_value"]), cfg.get("truth_units", DEFAULT_UNITS))
     if not truth_m3 or truth_m3 <= 0:
         st.warning("Host is setting up the game. Please check back in a moment.")
     name = st.text_input("Your name (optional)", placeholder="First name or nickname")

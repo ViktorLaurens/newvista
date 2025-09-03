@@ -439,38 +439,56 @@ with board_tab:
     else:
         df = df.copy()
         if "abs_error_liters" in df.columns and "pct_error" in df.columns:
-            # sort by closeness
+            # Sort by closeness and take Top 10
             df.sort_values(by=["pct_error", "abs_error_liters", "timestamp"], inplace=True)
+            df_top = df.head(10).copy()
+            df_top.insert(0, "Position", range(1, len(df_top) + 1))
 
-            # Top 10 + position column
-            df_for_display = df.head(10).copy()
-            df_for_display.insert(0, "Position", range(1, len(df_for_display) + 1))
-
-            # Select/rename display columns
-            df_view = df_for_display[["Position", "display_name", "pct_error", "timestamp"]].rename(columns={
+            # Build display frame
+            df_view = df_top[["Position", "display_name", "pct_error", "timestamp"]].rename(columns={
                 "display_name": "Name",
                 "pct_error": "% error",
                 "timestamp": "Time",
             })
 
-            # Center headers + cells; hide index; format % error
-            styler = (
-                df_view.style
-                    .set_table_styles([
-                        {"selector": "th", "props": [("text-align", "center")]},
-                        {"selector": "td", "props": [("text-align", "center")]},
-                    ])
-                    .format({"% error": "{:.2f}"})
-            )
-            try:
-                styler = styler.hide(axis="index")
-            except Exception:
-                styler = styler.hide_index()
+            # Pretty formatting
+            df_view["% error"] = df_view["% error"].map(lambda x: f"{x:.2f}")
+            # Optional: only show time (HH:MM:SS)
+            # df_view["Time"] = pd.to_datetime(df_view["Time"], errors="coerce").dt.strftime("%H:%M:%S")
 
-            # Use st.table (Styler is ignored by st.dataframe)
-            st.table(styler)
+            # Medal badges (HTML) for top 3; keep others as numbers
+            def pos_badge(p: int) -> str:
+                if p == 1: return "🥇"
+                if p == 2: return "🥈"
+                if p == 3: return "🥉"
+                return str(p)
+            df_view["Position"] = df_view["Position"].apply(lambda p: f"<span class='pos'>{pos_badge(p)}</span>")
 
-            # Best so far
+            # Create HTML table w/ custom CSS — all cells centered, no index
+            css = """
+            <style>
+              table.leaderboard { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 1.05rem; }
+              table.leaderboard th, table.leaderboard td { text-align: center; padding: 10px 12px; }
+              table.leaderboard thead th { position: sticky; top: 0; z-index: 1;
+                  background: rgba(255,255,255,0.06); backdrop-filter: blur(2px); }
+              table.leaderboard tr:nth-child(even) td { background: rgba(255,255,255,0.04); }
+              table.leaderboard td, table.leaderboard th { border-bottom: 1px solid rgba(255,255,255,0.10); }
+              /* round corners on the whole table card a bit */
+              table.leaderboard { border-radius: 12px; overflow: hidden; }
+              /* position badge */
+              .pos { display:inline-grid; place-items:center; width:2.1rem; height:2.1rem; border-radius:50%;
+                     background: rgba(255,255,255,0.08); font-weight:700; }
+              /* gold / silver / bronze backgrounds for first three rows */
+              tbody tr:nth-child(1) .pos { background: linear-gradient(135deg,#ffd700,#ffbf00); color:#111; }
+              tbody tr:nth-child(2) .pos { background: linear-gradient(135deg,#c0c0c0,#bdbdbd); color:#111; }
+              tbody tr:nth-child(3) .pos { background: linear-gradient(135deg,#cd7f32,#b87333); color:#111; }
+            </style>
+            """
+
+            html = df_view.to_html(index=False, escape=False, classes="leaderboard")
+            st.markdown(css + html, unsafe_allow_html=True)
+
+            # Best so far (from the fully sorted df, not just top10)
             best = df.iloc[0]
             st.caption(f"Best so far: {best['display_name']} ({best['pct_error']:.2f}% error)")
         else:

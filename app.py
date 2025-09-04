@@ -400,6 +400,10 @@ with guess_tab:
             st.error("Sorry — scoring isn't ready yet.")
         else:
             guess_liters = guess_value
+            if guess_liters > 1000:
+                guess_liters /= 1000
+                st.info(f"Your guess of {guess_value} seemed high, so we interpreted it as {guess_liters:.3f} liters. Good luck!")
+            
             abs_err, pct_err, is_win = _compute_outcome(truth_liters, guess_liters, cfg.get("tol_mode", "percent"), float(cfg.get("tolerance_value", 5.0)))
 
             row = {
@@ -413,7 +417,7 @@ with guess_tab:
             }
             STORAGE.append_guess(row)
 
-            st.success(f"You guessed {guess_value:.3f} liters.")
+            st.success(f"You guessed {guess_liters:.3f} liters.")
             st.info(f"Actual: {truth_liters:.3f} liters • Error: {abs_err:.3f} liters ({pct_err:.1f}%).")
 
             if is_win:
